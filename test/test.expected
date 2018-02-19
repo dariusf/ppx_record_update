@@ -1,0 +1,2 @@
+{ Test.Book.borrowed_by = { Test.Person.id = 3; name = "bob" };
+  title = "a tale of two cities" }

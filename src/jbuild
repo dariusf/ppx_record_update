@@ -1,0 +1,10 @@
+(jbuild_version 1)
+
+(library
+ ((name ppx_record_update)
+  (public_name ppx_record_update)
+  (wrapped false)
+  (kind ppx_rewriter)
+  (libraries (ppx_core ppx_driver))
+  (flags (:standard -bin-annot -short-paths))
+  (preprocess (pps (ppx_metaquot ppx_compare ppx_sexp_conv)))))

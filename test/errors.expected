@@ -1,0 +1,2 @@
+let () = [%ocaml.error "field assignment expected"] 
+let () = [%ocaml.error "field assignment expected"] 
