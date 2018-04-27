@@ -36,7 +36,11 @@ let rec pexp_sequence_to_list e =
 
 type path = string list list
 
-let show_path xs = List.map ~f:(String.concat ~sep:".") xs |> String.concat ~sep:"->"
+let show_ident xs =
+  String.concat ~sep:"->" xs
+
+let show_path xs =
+  List.map ~f:(String.concat ~sep:".") xs |> show_ident
 
 type assignment = {
   lhs : path;
@@ -47,12 +51,11 @@ type assignment = {
 (** This should be kept in sync with check_assignment_exp *)
 let to_assignment e =
   match e with
-  | { pexp_desc = Pexp_setfield (lhs, f, rhs); pexp_loc = loc } ->
+  | { pexp_desc = Pexp_setfield ({ pexp_loc = loc } as lhs, f, rhs) } ->
     let fs = pexp_field_to_list lhs in
     {
       lhs = List.map ~f:Longident.flatten_exn (fs @ [f |> Loc.txt]);
-      rhs;
-      loc
+      rhs; loc
     }
   | _ ->
     failwith "to_assignment: not a field assignment"
@@ -89,7 +92,7 @@ module Trie = struct
     let open Printf in
     let id = ss |> String.concat ~sep:"." in
     match n with
-    | Branches ts -> sprintf "Node (%s, Branches (%s))" id (List.map ~f:show ts |> String.concat ~sep:",")
+    | Branches ts -> sprintf "Node (%s, Branches [%s])" id (List.map ~f:show ts |> String.concat ~sep:";")
     | Terminal e -> sprintf "Node (%s, Terminal %s)" id (Pprintast.string_of_expression e)
 
   let rec from is e =
@@ -98,20 +101,35 @@ module Trie = struct
     | [x] -> Node (x, Terminal e)
     | x :: xs -> Node (x, Branches [from xs e])
 
-  let rec insert (Node (id, nx)) { lhs; rhs; loc } =
-    match lhs with
-    | [] -> failwith "trie_insert: empty"
-    | [id] -> Node (id, Terminal rhs)
-    | id :: ids ->
-      (match nx with
-       | Branches ts ->
-         if List.exists ts ~f:(fun (Node (n, _)) -> Caml.(n = id)) then
-           (* invalid_arg "this value is already assigned" *)
-           die ~loc "this value is already assigned"
-         else
-           Node (id, Branches (insert (Node (id, Branches [])) { lhs = ids; rhs; loc } :: ts))
-       | Terminal _ ->
-         invalid_arg "expressions can only live at leaves")
+  let insert node ({ loc } as assignment) =
+    let rec run (Node (id, nx)) { lhs; rhs } =
+      match nx with
+      | Terminal _ ->
+        invalid_arg "expressions can only live at leaves"
+      | Branches ts ->
+        match lhs with
+        | [] ->
+          failwith "insert: empty assignment"
+        | [lid] ->
+          if List.exists ts ~f:(fun (Node (n, _)) -> Caml.(n = lid)) then
+            die ~loc "this value is already assigned"
+          else
+            Node (id, Branches (Node (lid, Terminal rhs) :: ts))
+        | lid :: ids ->
+          match List.partition_map ts ~f:(fun (Node (i, _) as n) -> if Caml.(i = lid) then `Fst n else `Snd n) with
+          | [], _ ->
+            let r = run (Node (lid, Branches [])) { lhs = ids; rhs; loc } in
+            Node (id, Branches (r :: ts))
+          | [n], rest ->
+            let r = run n { lhs = ids; rhs; loc } in
+            Node (id, Branches (r :: rest))
+          | _ -> failwith @@ "insert: invariant broken; more than one node with name " ^ show_ident lid
+    in
+    let Node (id, _) = node in
+    match assignment.lhs with
+    | [] -> failwith "insert: empty assignment"
+    | lid :: lhs when Caml.(lid = id) -> run node { assignment with lhs }
+    | _ -> die ~loc "there can be only one root node"
 
   let to_record node =
     let rec run ctx (Node (id, nx)) =
@@ -150,8 +168,12 @@ let handle ~loc ~path:_ (e : expression) =
 
        (* print_endline @@ Trie.show @@ tr; *)
        let e = snd @@ Trie.to_record tr in
-       (* suppress warning about using with clause when all fields are present *)
-       [%expr [%e e] [@ocaml.warning "-23"]]
+
+       (* Suppress warning about using with clause when all fields are present *)
+       { e with pexp_attributes = [
+             Loc.make ~loc "ocaml.warning",
+             PStr [pstr_eval ~loc (estring ~loc "-23") []]]
+       }
 
      | _ -> failwith "handle: empty sequence")
   with Failure (loc, s) ->

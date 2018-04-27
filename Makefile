@@ -12,6 +12,7 @@ lol:
 
 examples:
 	jbuilder build examples/a.exe
+	_build/default/.ppx/ppx_record_update+ppx_driver.runner/ppx.exe examples/a.ml
 
 test: all
 	_build/default/.ppx/ppx_record_update+ppx_driver.runner/ppx.exe test/test.ml
