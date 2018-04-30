@@ -1,3 +1,4 @@
-let () = [%ocaml.error "field assignment expected"] 
+let () = [%ocaml.error "expected a field assignment using <- or <~"] 
 let () = [%ocaml.error "there can be only one root node"] 
 let () = [%ocaml.error "this value is already assigned"] 
+let () = (({ a with A.b = 2; b = 1 })[@ocaml.warning "-23"]) 

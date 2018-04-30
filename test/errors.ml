@@ -15,3 +15,10 @@ let () =
     a.b <- 1;
     a.b <- 2;
   ]
+
+(* Unhandled *)
+let () =
+  [%record
+    a.b <- 1;
+    a.A.b <- 2;
+  ]

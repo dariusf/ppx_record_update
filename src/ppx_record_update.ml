@@ -20,20 +20,6 @@ let rec pexp_field_to_list e =
     (* This is probably guaranteed by the parser *)
     failwith "pexp_field_to_list: not a field or ident"
 
-let check_assignment_exp e =
-  match e with
-  | { pexp_desc = Pexp_setfield _ } ->
-    (* | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident ":=" } }, _) } -> *)
-    e
-  | { pexp_loc = loc } ->
-    die ~loc "field assignment expected"
-
-let rec pexp_sequence_to_list e =
-  match e with
-  | { pexp_desc = Pexp_sequence (h, t); pexp_loc; pexp_attributes } ->
-    check_assignment_exp h :: pexp_sequence_to_list t
-  | x -> [check_assignment_exp x]
-
 type path = string list list
 
 let show_ident xs =
@@ -42,9 +28,31 @@ let show_ident xs =
 let show_path xs =
   List.map ~f:(String.concat ~sep:".") xs |> show_ident
 
+let check_assignment_exp e =
+  match e with
+  | { pexp_desc = Pexp_setfield _ }
+  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "<~" } }, [ _; _]) } ->
+    e
+  | { pexp_loc = loc } ->
+    die ~loc "expected a field assignment using <- or <~"
+
+let rec pexp_sequence_to_list e =
+  match e with
+  | { pexp_desc = Pexp_sequence (h, t); pexp_loc; pexp_attributes } ->
+    check_assignment_exp h :: pexp_sequence_to_list t
+  | x -> [check_assignment_exp x]
+
+type rhs =
+  | Expr of expression
+  | Func of expression
+
+let show_rhs = function
+  | Expr e
+  | Func e -> Pprintast.string_of_expression e
+
 type assignment = {
   lhs : path;
-  rhs : expression;
+  rhs : rhs;
   loc : Location.t;
 }
 
@@ -55,10 +63,18 @@ let to_assignment e =
     let fs = pexp_field_to_list lhs in
     {
       lhs = List.map ~f:Longident.flatten_exn (fs @ [f |> Loc.txt]);
-      rhs; loc
+      rhs = Expr rhs;
+      loc
     }
-  | _ ->
-    failwith "to_assignment: not a field assignment"
+  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "<~" }; pexp_loc = loc }, [_, i; _, f]) } ->
+    let fs = pexp_field_to_list i in
+    {
+      lhs = List.map ~f:Longident.flatten_exn fs;
+      rhs = Func f;
+      loc
+    }
+  | { pexp_loc = loc } ->
+    failwith "to_assignment: invalid field assignment"
 
 let loc = Location.none
 
@@ -86,14 +102,14 @@ module Trie = struct
     | Node of string list * neighbour
   and neighbour =
     | Branches of t list
-    | Terminal of expression
+    | Terminal of rhs
 
   let rec show (Node (ss, n)) =
     let open Printf in
     let id = ss |> String.concat ~sep:"." in
     match n with
     | Branches ts -> sprintf "Node (%s, Branches [%s])" id (List.map ~f:show ts |> String.concat ~sep:";")
-    | Terminal e -> sprintf "Node (%s, Terminal %s)" id (Pprintast.string_of_expression e)
+    | Terminal e -> sprintf "Node (%s, Terminal %s)" id (show_rhs e)
 
   let rec from is e =
     match is with
@@ -133,11 +149,14 @@ module Trie = struct
 
   let to_record node =
     let rec run ctx (Node (id, nx)) =
+      let field = List.map ~f:unflatten (List.rev ctx @ [id]) |> list_to_pexp_field in
       match nx with
-      | Terminal e ->
+      | Terminal r ->
         (* print_endline @@ "terminal"; *)
         (* print_endline @@ show_path [id]; *)
-        id, e
+        id, (match r with
+            | Expr e -> e
+            | Func f -> pexp_apply ~loc f [Nolabel, field])
       | Branches ts ->
         (* print_endline @@ "branches"; *)
         (* print_endline @@ show_path [id]; *)
@@ -145,7 +164,7 @@ module Trie = struct
         let fs = res |> List.map ~f:(fun (i, r) ->
             wrap_loc ~loc (unflatten i), r)
         in
-        id, pexp_record ~loc fs (Some (List.map ~f:unflatten (List.rev ctx @ [id]) |> list_to_pexp_field))
+        id, pexp_record ~loc fs (Some field)
 
     in run [] node
 
