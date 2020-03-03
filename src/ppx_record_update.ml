@@ -1,4 +1,4 @@
-open Ppx_core
+open Ppxlib
 open Ast_builder.Default
 
 let name = "record"
@@ -11,10 +11,10 @@ let die ~loc s = raise (Failure (loc, s))
 
 let rec pexp_field_to_list e =
   match e with
-  | { pexp_desc = Pexp_field (e, ident) } ->
+  | { pexp_desc = Pexp_field (e, ident); _ } ->
     (* TODO n^2 *)
     pexp_field_to_list e @ [Loc.txt ident]
-  | { pexp_desc = Pexp_ident ident } ->
+  | { pexp_desc = Pexp_ident ident; _ } ->
     [Loc.txt ident]
   | _ ->
     (* This is probably guaranteed by the parser *)
@@ -23,22 +23,22 @@ let rec pexp_field_to_list e =
 type path = string list list
 
 let show_ident xs =
-  String.concat ~sep:"->" xs
+  String.concat "->" xs
 
 let show_path xs =
-  List.map ~f:(String.concat ~sep:".") xs |> show_ident
+  List.map (String.concat ".") xs |> show_ident
 
 let check_assignment_exp e =
   match e with
-  | { pexp_desc = Pexp_setfield _ }
-  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "<~" } }, [ _; _]) } ->
+  | { pexp_desc = Pexp_setfield _; _ }
+  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "<~"; _ }; _ }, [ _; _]); _ } ->
     e
-  | { pexp_loc = loc } ->
+  | { pexp_loc = loc; _ } ->
     die ~loc "expected a field assignment using <- or <~"
 
 let rec pexp_sequence_to_list e =
   match e with
-  | { pexp_desc = Pexp_sequence (h, t); pexp_loc; pexp_attributes } ->
+  | { pexp_desc = Pexp_sequence (h, t); _ } ->
     check_assignment_exp h :: pexp_sequence_to_list t
   | x -> [check_assignment_exp x]
 
@@ -59,21 +59,21 @@ type assignment = {
 (** This should be kept in sync with check_assignment_exp *)
 let to_assignment e =
   match e with
-  | { pexp_desc = Pexp_setfield ({ pexp_loc = loc } as lhs, f, rhs) } ->
+  | { pexp_desc = Pexp_setfield ({ pexp_loc = loc; _ } as lhs, f, rhs); _ } ->
     let fs = pexp_field_to_list lhs in
     {
-      lhs = List.map ~f:Longident.flatten_exn (fs @ [f |> Loc.txt]);
+      lhs = List.map Longident.flatten_exn (fs @ [f |> Loc.txt]);
       rhs = Expr rhs;
       loc
     }
-  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "<~" }; pexp_loc = loc }, [_, i; _, f]) } ->
+  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident { txt = Lident "<~"; _ }; pexp_loc = loc; _ }, [_, i; _, f]); _ } ->
     let fs = pexp_field_to_list i in
     {
-      lhs = List.map ~f:Longident.flatten_exn fs;
+      lhs = List.map Longident.flatten_exn fs;
       rhs = Func f;
       loc
     }
-  | { pexp_loc = loc } ->
+  | _ ->
     failwith "to_assignment: invalid field assignment"
 
 let loc = Location.none
@@ -81,20 +81,20 @@ let loc = Location.none
 let wrap_loc ~loc a =
   Location.{ txt = a; loc; }
 
-let rec list_to_pexp_field (e : Longident.t list) =
+let list_to_pexp_field (e : Longident.t list) =
   match e with
   | [] -> failwith "list_to_pexp_field: empty list"
   | x :: xs ->
-    List.fold_left ~init:(pexp_ident ~loc (wrap_loc ~loc x))
-      ~f:(fun t c -> pexp_field ~loc t (wrap_loc ~loc c)) xs
+    List.fold_left (fun t c -> pexp_field ~loc t (wrap_loc ~loc c))
+      (pexp_ident ~loc (wrap_loc ~loc x)) xs
 
-let show_longident i = Longident.flatten_exn i |> String.concat ~sep:"->"
+let show_longident i = Longident.flatten_exn i |> String.concat "->"
 
 let unflatten xs =
   match xs with
   | [] -> failwith "unflatten: empty list"
   | [x] -> Lident x
-  | x :: xs -> List.fold_left ~init:(Lident x) ~f:(fun t c -> Ldot (t, c)) xs
+  | x :: xs -> List.fold_left (fun t c -> Ldot (t, c)) (Lident x) xs
 
 module Trie = struct
 
@@ -106,9 +106,9 @@ module Trie = struct
 
   let rec show (Node (ss, n)) =
     let open Printf in
-    let id = ss |> String.concat ~sep:"." in
+    let id = ss |> String.concat "." in
     match n with
-    | Branches ts -> sprintf "Node (%s, Branches [%s])" id (List.map ~f:show ts |> String.concat ~sep:";")
+    | Branches ts -> sprintf "Node (%s, Branches [%s])" id (List.map show ts |> String.concat ";")
     | Terminal e -> sprintf "Node (%s, Terminal %s)" id (show_rhs e)
 
   let rec from is e =
@@ -117,8 +117,8 @@ module Trie = struct
     | [x] -> Node (x, Terminal e)
     | x :: xs -> Node (x, Branches [from xs e])
 
-  let insert node ({ loc } as assignment) =
-    let rec run (Node (id, nx)) { lhs; rhs } =
+  let insert node ({ loc; _ } as assignment) =
+    let rec run (Node (id, nx)) { lhs; rhs; _ } =
       match nx with
       | Terminal _ ->
         invalid_arg "expressions can only live at leaves"
@@ -127,12 +127,12 @@ module Trie = struct
         | [] ->
           failwith "insert: empty assignment"
         | [lid] ->
-          if List.exists ts ~f:(fun (Node (n, _)) -> Caml.(n = lid)) then
+          if List.exists (fun (Node (n, _)) -> Caml.(n = lid)) ts then
             die ~loc "this value is already assigned"
           else
             Node (id, Branches (Node (lid, Terminal rhs) :: ts))
         | lid :: ids ->
-          match List.partition_map ts ~f:(fun (Node (i, _) as n) -> if Caml.(i = lid) then `Fst n else `Snd n) with
+          match List.partition (fun (Node (i, _)) -> Caml.(i = lid)) ts with
           | [], _ ->
             let r = run (Node (lid, Branches [])) { lhs = ids; rhs; loc } in
             Node (id, Branches (r :: ts))
@@ -149,7 +149,7 @@ module Trie = struct
 
   let to_record node =
     let rec run ctx (Node (id, nx)) =
-      let field = List.map ~f:unflatten (List.rev ctx @ [id]) |> list_to_pexp_field in
+      let field = List.map unflatten (List.rev ctx @ [id]) |> list_to_pexp_field in
       match nx with
       | Terminal r ->
         (* print_endline @@ "terminal"; *)
@@ -160,8 +160,8 @@ module Trie = struct
       | Branches ts ->
         (* print_endline @@ "branches"; *)
         (* print_endline @@ show_path [id]; *)
-        let res = List.map ~f:(fun t -> run (id :: ctx) t) ts in
-        let fs = res |> List.map ~f:(fun (i, r) ->
+        let res = List.map (fun t -> run (id :: ctx) t) ts in
+        let fs = res |> List.map (fun (i, r) ->
             wrap_loc ~loc (unflatten i), r)
         in
         id, pexp_record ~loc fs (Some field)
@@ -174,24 +174,21 @@ let handle ~loc ~path:_ (e : expression) =
   try
     let es = pexp_sequence_to_list e in
 
-    let assignments = es |> List.map ~f:to_assignment in
+    let assignments = es |> List.map to_assignment in
     (match assignments with
-     | { lhs = ai; rhs = ae } :: a1 ->
+     | { lhs = ai; rhs = ae; _ } :: a1 ->
 
        (* print_endline @@ show_path ai; *)
        (* print_endline @@ Pprintast.string_of_expression ae; *)
 
-       let tr = List.fold_right ~init:(Trie.from ai ae)
-           ~f:(fun c t ->
-               Trie.insert t c) a1 in
+       let tr = List.fold_right (fun c t -> Trie.insert t c) a1 (Trie.from ai ae) in
 
        (* print_endline @@ Trie.show @@ tr; *)
        let e = snd @@ Trie.to_record tr in
 
        (* Suppress warning about using with clause when all fields are present *)
        { e with pexp_attributes = [
-             Loc.make ~loc "ocaml.warning",
-             PStr [pstr_eval ~loc (estring ~loc "-23") []]]
+             { attr_loc = loc; attr_name = Loc.make ~loc "ocaml.warning"; attr_payload = PStr [pstr_eval ~loc (estring ~loc "-23") []]}]
        }
 
      | _ -> failwith "handle: empty sequence")
@@ -206,4 +203,4 @@ let ext =
     handle
 
 let () =
-  Ppx_driver.register_transformation name ~extensions:[ext]
+  Driver.register_transformation name ~extensions:[ext]

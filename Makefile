@@ -5,18 +5,18 @@ RESET=$(shell tput sgr0)
 .PHONY: all lol examples test update-tests clean
 
 all:
-	jbuilder build @install
+	dune build @install
 
 lol:
 	ocamlc -dparsetree test/test.ml
 
 examples:
-	jbuilder build examples/a.exe
-	_build/default/.ppx/ppx_record_update+ppx_driver.runner/ppx.exe examples/a.ml
+	dune build examples/a.exe
+	_build/default/.ppx/ppx_record_update/ppx.exe examples/a.ml
 
 test: all
-	_build/default/.ppx/ppx_record_update+ppx_driver.runner/ppx.exe test/test.ml
-	jbuilder runtest
+	_build/default/.ppx/ppx_record_update/ppx.exe test/test.ml
+	dune runtest
 	@echo "$(GREEN)PASSED$(RESET)"
 
 update-tests: all
@@ -24,4 +24,4 @@ update-tests: all
 	cp _build/default/test/errors.result test/errors.expected
 
 clean:
-	jbuilder clean
+	dune clean

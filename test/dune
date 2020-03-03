@@ -1,0 +1,44 @@
+(executables
+ (names test)
+ (modules test)
+ (preprocess
+  (pps ppx_record_update ppx_deriving.show)))
+
+(executables
+ (names pp)
+ (modules pp)
+ (libraries ppx_record_update ppxlib))
+
+(rule
+ (targets test.result)
+ (deps test.ml)
+ (action
+  (with-outputs-to
+   test.result
+   (run ./test.exe))))
+
+(rule
+ (targets errors.result)
+ (deps
+  (:< errors.ml))
+ (action
+  (run ./pp.exe --impl %{<} -o %{targets})))
+
+(alias
+ (name runtest)
+ (deps test.result test.expected)
+ (action
+  (run git -c color.ui=always diff --no-index --ignore-all-space test.expected test.result)))
+
+(alias
+ (name runtest)
+ (deps errors.result errors.expected)
+ (action
+  (run git -c color.ui=always diff --no-index --ignore-all-space errors.expected errors.result)))
+
+(alias
+ (name runtest)
+ (deps
+  (:< test.exe))
+ (action
+  (run %{<})))

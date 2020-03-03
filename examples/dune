@@ -1,0 +1,4 @@
+(executables
+ (names a)
+ (preprocess
+  (pps ppx_record_update ppx_deriving.show)))
