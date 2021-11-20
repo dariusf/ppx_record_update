@@ -17,15 +17,16 @@ exception Failure of Location.t * string
 (* every instance of this should have a test case *)
 let malformed_user_input ~loc s = raise (Failure (loc, s))
 
-let rec pexp_field_to_list e =
-  match e with
-  | { pexp_desc = Pexp_field (e, ident); _ } ->
-    (* TODO n^2 *)
-    pexp_field_to_list e @ [Loc.txt ident]
-  | { pexp_desc = Pexp_ident ident; _ } -> [Loc.txt ident]
-  | _ ->
-    (* This is probably guaranteed by the parser *)
-    error "pexp_field_to_list: not a field or ident"
+let pexp_field_to_list e =
+  let rec loop e acc =
+    match e with
+    | { pexp_desc = Pexp_field (e, ident); _ } -> loop e (Loc.txt ident :: acc)
+    | { pexp_desc = Pexp_ident ident; _ } -> Loc.txt ident :: acc
+    | _ ->
+      (* This is probably guaranteed by the parser *)
+      error "pexp_field_to_list: not a field or ident"
+  in
+  loop e []
 
 type ident = string list
 
