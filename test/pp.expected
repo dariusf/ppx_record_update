@@ -1,0 +1,38 @@
+module Person =
+  struct
+    type t = {
+      id: int ;
+      name: string ;
+      age: int ;
+      child: t option }[@@deriving show]
+  end
+module Book =
+  struct
+    type t = {
+      borrowed_by: Person.t ;
+      title: string ;
+      in_queue: Person.t list }[@@deriving show]
+  end
+let _ =
+  let p = { Person.id = 10; name = "bob"; age = 20; child = None } in
+  let p1 = { Person.id = 11; name = "trudy"; age = 1; child = None } in
+  let b =
+    let open Book in
+      { borrowed_by = p; title = "anna karenina"; in_queue = [] } in
+  let succ x = x + 1 in
+  print_endline @@
+    (Book.show
+       (({
+           b with
+           borrowed_by =
+             {
+               (b.borrowed_by) with
+               age = (succ (b.borrowed_by).age);
+               child =
+                 (Some
+                    { Person.id = 1; name = "trudy"; age = 7; child = None });
+               id = 10
+             };
+           Book.title = "a tale of two cities";
+           in_queue = ((fun p -> p1 :: p) b.in_queue)
+         })[@ocaml.warning "-23"]))

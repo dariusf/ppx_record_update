@@ -2,4 +2,6 @@
   { Test.Person.id = 10; name = "bob"; age = 21;
     child =
     (Some { Test.Person.id = 1; name = "trudy"; age = 7; child = None }) };
-  title = "a tale of two cities" }
+  title = "a tale of two cities";
+  in_queue = [{ Test.Person.id = 11; name = "trudy"; age = 1; child = None }]
+  }

@@ -1,44 +1,24 @@
-(executables
- (names test)
- (modules test)
- (preprocess
-  (pps ppx_record_update ppx_deriving.show)))
-
-(executables
- (names pp)
- (modules pp)
- (libraries ppx_record_update ppxlib))
+; generates ppx result
 
 (rule
- (targets test.result)
+ (targets pp.result)
  (deps test.ml)
  (action
-  (with-outputs-to
-   test.result
-   (run ./test.exe))))
+  (run ./pp/pp.exe --impl %{deps} -o %{targets})))
+
+; checks ppx result, enables promotion
 
 (rule
- (targets errors.result)
- (deps
-  (:< errors.ml))
+ (alias runtest)
  (action
-  (run ./pp.exe --impl %{<} -o %{targets})))
+  (diff pp.expected pp.result)))
 
-(alias
- (name runtest)
- (deps test.result test.expected)
- (action
-  (run git -c color.ui=always diff --no-index --ignore-all-space test.expected test.result)))
+; compiles and executes the test file, then compares the result
 
-(alias
- (name runtest)
- (deps errors.result errors.expected)
- (action
-  (run git -c color.ui=always diff --no-index --ignore-all-space errors.expected errors.result)))
-
-(alias
- (name runtest)
- (deps
-  (:< test.exe))
- (action
-  (run %{<})))
+(test
+ (name test)
+ (modules test)
+ (modes byte exe)
+ (libraries ppx_deriving.std ppx_record_update)
+ (preprocess
+  (pps ppx_record_update ppx_deriving.show)))
