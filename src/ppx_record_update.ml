@@ -9,7 +9,6 @@ end
 
 (* signals that a case should be impossible *)
 let error fmt = Format.ksprintf failwith fmt
-
 let error_node ~loc msg = [%expr [%ocaml.error [%e estring ~loc msg]]]
 
 exception Failure of Location.t * string
@@ -36,7 +35,6 @@ type ident = string list
 type path = ident list
 
 let show_ident xs = String.concat "->" xs
-
 let show_path xs = List.map (String.concat ".") xs |> show_ident
 
 let check_assignment_exp e =
@@ -92,7 +90,6 @@ let to_assignment e =
   | _ -> error "to_assignment: invalid field assignment"
 
 let loc = Location.none
-
 let wrap_loc ~loc a = Location.{ txt = a; loc }
 
 let list_to_pexp_field (e : Longident.t list) =
@@ -231,9 +228,38 @@ let handle ~loc:_ ~path:_ (e : expression) =
     | _ -> error "handle: empty sequence"
   with Failure (loc, s) -> error_node ~loc s
 
-let ext =
-  Extension.declare "record" Extension.Context.expression
-    Ast_pattern.(single_expr_payload __)
-    handle
+let handle_mutable_update (e : expression) =
+  let loc = e.pexp_loc in
+  (* match e with *)
+  (* [%expr [%e? left] right] -> *)
+  match e.pexp_desc with
+  | Pexp_apply
+      ( _,
+        (_, ({ pexp_desc = Pexp_field (left, field); _ } as fieldset))
+        :: [
+             ( _,
+               ((* this doesn't work *)
+                (* [%expr fun _ -> [%e? _]] *)
+               { pexp_desc = Pexp_fun (Nolabel, None, _pat, _body); _ } as fn)
+             );
+           ] ) ->
+    let set =
+      Ast_builder.Default.pexp_setfield ~loc left field
+        [%expr [%e fn] [%e fieldset]]
+    in
+    Some set
+  | _ -> None
 
-let () = Driver.register_transformation "ppx_record_update" ~extensions:[ext]
+let record_ext =
+  Context_free.Rule.extension
+    (Extension.declare "record" Extension.Context.expression
+       Ast_pattern.(single_expr_payload __)
+       handle)
+
+let mutable_update =
+  Context_free.Rule.special_function "<~" handle_mutable_update
+
+let () =
+  Driver.register_transformation
+    ~rules:[record_ext; mutable_update]
+    "ppx_record_update"

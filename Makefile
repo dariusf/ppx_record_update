@@ -5,7 +5,7 @@ RESET=$(shell tput sgr0)
 .PHONY: all lol examples test update-tests clean
 
 all:
-	dune test
+	dune test --display=short
 	dune build @install
 
 lol:

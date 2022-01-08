@@ -17,6 +17,8 @@ module Book = struct
   [@@deriving show]
 end
 
+type state = { mutable local : int }
+
 let _ =
   let p = { Person.id = 10; name = "bob"; age = 20; child = None } in
   let p1 = { Person.id = 11; name = "trudy"; age = 1; child = None } in
@@ -40,7 +42,17 @@ let _ =
          b.borrowed_by.age <~ succ
          (* p.id <- 1; *)
 
-         (* () *)]
+         (* () *)];
+
+  let s = { local = 1 } in
+  s.local <- 1;
+  (* the fun can also be parenthesized but ocamlformat produces this *)
+  ( s.local <~ fun s -> s + 1 );
+  (* this wil apply to the rest of a seq *)
+  Format.printf "%d@." s.local;
+  s.local <~ fun s ->
+  ();
+  s + 1
 
 (* print_endline @@ Book.show [%record
    b.Book.borrowed_by.id <- 3;

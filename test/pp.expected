@@ -13,6 +13,8 @@ module Book =
       title: string ;
       in_queue: Person.t list }[@@deriving show]
   end
+type state = {
+  mutable local: int }
 let _ =
   let p = { Person.id = 10; name = "bob"; age = 20; child = None } in
   let p1 = { Person.id = 11; name = "trudy"; age = 1; child = None } in
@@ -35,4 +37,9 @@ let _ =
              };
            Book.title = "a tale of two cities";
            in_queue = ((fun p -> p1 :: p) b.in_queue)
-         })[@ocaml.warning "-23"]))
+         })[@ocaml.warning "-23"]));
+  (let s = { local = 1 } in
+   s.local <- 1;
+   s.local <- (((fun s -> s + 1)) s.local);
+   Format.printf "%d@." s.local;
+   s.local <- (((fun s -> (); s + 1)) s.local))
