@@ -12,5 +12,5 @@
 
 (package
  (name ppx_record_update)
- (synopsis "ppx_record_update")
- (description "ppx_record_update"))
+ (synopsis "A ppx for nicer record update syntax")
+ (description "Provides syntax for assigning individual fields of a record, mapping over fields, and fusing several such updates into a single one."))
