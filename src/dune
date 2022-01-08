@@ -1,5 +1,5 @@
 (library
- (name ppx_record_update)
+ (public_name ppx_record_update)
  (kind ppx_rewriter)
  (libraries ppxlib)
  (preprocess
