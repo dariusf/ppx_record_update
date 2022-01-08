@@ -238,10 +238,9 @@ let handle_mutable_update (e : expression) =
         (_, ({ pexp_desc = Pexp_field (left, field); _ } as fieldset))
         :: [
              ( _,
-               ((* this doesn't work *)
-                (* [%expr fun _ -> [%e? _]] *)
-               { pexp_desc = Pexp_fun (Nolabel, None, _pat, _body); _ } as fn)
-             );
+               (* this doesn't work *)
+               (* [%expr fun _ -> [%e? _]] *)
+               fn );
            ] ) ->
     let set =
       Ast_builder.Default.pexp_setfield ~loc left field

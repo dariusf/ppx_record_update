@@ -45,9 +45,11 @@ let _ =
          (* () *)];
 
   let s = { local = 1 } in
+  let inc x = x + 1 in
   s.local <- 1;
   (* the fun can also be parenthesized but ocamlformat produces this *)
   ( s.local <~ fun s -> s + 1 );
+  s.local <~ inc;
   (* this wil apply to the rest of a seq *)
   Format.printf "%d@." s.local;
   s.local <~ fun s ->

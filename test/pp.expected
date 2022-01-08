@@ -39,7 +39,9 @@ let _ =
            in_queue = ((fun p -> p1 :: p) b.in_queue)
          })[@ocaml.warning "-23"]));
   (let s = { local = 1 } in
+   let inc x = x + 1 in
    s.local <- 1;
    s.local <- (((fun s -> s + 1)) s.local);
+   s.local <- (inc s.local);
    Format.printf "%d@." s.local;
    s.local <- (((fun s -> (); s + 1)) s.local))
