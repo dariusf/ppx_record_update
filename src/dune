@@ -2,6 +2,10 @@
  (name ppx_record_update)
  (kind ppx_rewriter)
  (libraries ppxlib)
- (flags :standard -bin-annot -short-paths)
  (preprocess
   (pps ppxlib.metaquot)))
+
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
