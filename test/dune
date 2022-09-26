@@ -17,8 +17,6 @@
 
 (test
  (name test)
- (modules test)
- (modes byte exe)
  (libraries ppx_deriving.std ppx_record_update)
  (preprocess
   (pps ppx_record_update ppx_deriving.show)))

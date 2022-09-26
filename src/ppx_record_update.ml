@@ -136,31 +136,31 @@ module Trie = struct
       match nx with
       | Terminal _ -> malformed_user_input ~loc Errors.already_assigned
       | Branches br ->
-        (match lhs with
-        | [] ->
-          (* this should be impossible, as if assignment is nonempty,
-             we'll fail or succeed before this point *)
-          error "insert: empty assignment"
-        | [lid] ->
-          (* lid is the final record field we're assigning.
-             we want to create a terminal here to store the rhs,
-             so something being here already signals an error. *)
-          if List.exists (fun (Node (n, _)) -> n = lid) br then
-            malformed_user_input ~loc "this value is already assigned"
-          else Node (id, Branches (Node (lid, Terminal rhs) :: br))
-        | lid :: ids ->
-          (* we're not at the end, so just traverse down, creating or extending existing nodes *)
-          (match List.partition (fun (Node (i, _)) -> i = lid) br with
-          | [], _ ->
-            (* no matching node, so create one and continue *)
-            let r = run (Node (lid, Branches [])) { lhs = ids; rhs; loc } in
-            Node (id, Branches (r :: br))
-          | [n], rest ->
-            (* exactly one matching node; take it *)
-            let r = run n { lhs = ids; rhs; loc } in
-            Node (id, Branches (r :: rest))
-          | _ ->
-            error "insert: more than one node with name %s" (show_ident lid)))
+      match lhs with
+      | [] ->
+        (* this should be impossible, as if assignment is nonempty,
+           we'll fail or succeed before this point *)
+        error "insert: empty assignment"
+      | [lid] ->
+        (* lid is the final record field we're assigning.
+           we want to create a terminal here to store the rhs,
+           so something being here already signals an error. *)
+        if List.exists (fun (Node (n, _)) -> n = lid) br then
+          malformed_user_input ~loc "this value is already assigned"
+        else
+          Node (id, Branches (Node (lid, Terminal rhs) :: br))
+      | lid :: ids ->
+      (* we're not at the end, so just traverse down, creating or extending existing nodes *)
+      match List.partition (fun (Node (i, _)) -> i = lid) br with
+      | ([], _) ->
+        (* no matching node, so create one and continue *)
+        let r = run (Node (lid, Branches [])) { lhs = ids; rhs; loc } in
+        Node (id, Branches (r :: br))
+      | ([n], rest) ->
+        (* exactly one matching node; take it *)
+        let r = run n { lhs = ids; rhs; loc } in
+        Node (id, Branches (r :: rest))
+      | _ -> error "insert: more than one node with name %s" (show_ident lid)
     in
     (* an assignment looks like { lhs = x.y.z; rhs = 10 },
        where x is the variable name of the record variable we're assigning.
@@ -212,7 +212,7 @@ let handle ~loc:_ ~path:_ (e : expression) =
             r)
           (Trie.from v e) a1
       in
-      let _, e = Trie.to_record tr in
+      let (_, e) = Trie.to_record tr in
       (* suppress warning about using with clause when all fields are present *)
       {
         e with
@@ -255,10 +255,16 @@ let record_ext =
        Ast_pattern.(single_expr_payload __)
        handle)
 
+let r_ext =
+  Context_free.Rule.extension
+    (Extension.declare "r" Extension.Context.expression
+       Ast_pattern.(single_expr_payload __)
+       handle)
+
 let mutable_update =
   Context_free.Rule.special_function "<~" handle_mutable_update
 
 let () =
   Driver.register_transformation
-    ~rules:[record_ext; mutable_update]
+    ~rules:[r_ext; record_ext; mutable_update]
     "ppx_record_update"
